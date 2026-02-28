@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* CKEDITOR FINAL TYPOGRAPHY FIX */
+
+.ck-content h1 {
+    font-size: 32px !important;
+    font-weight: 700 !important;
+}
+
+.ck-content h2 {
+    font-size: 26px !important;
+    font-weight: 700 !important;
+}
+
+.ck-content h3 {
+    font-size: 22px !important;
+    font-weight: 600 !important;
+}
