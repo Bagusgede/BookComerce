@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendShippingTrackingWhatsapp;
 use App\Mail\ShippingTrackingNotification;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Services\PhoneNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -15,10 +15,6 @@ use Illuminate\Support\Facades\Mail;
 
 class OrderController extends Controller
 {
-    public function __construct(private PhoneNotificationService $phoneNotificationService)
-    {
-    }
-
     /**
      * Display orders list
      */
@@ -155,7 +151,7 @@ class OrderController extends Controller
         ]);
 
         $emailSent = false;
-        $phoneSent = false;
+        $phoneQueued = false;
 
         if (!empty($order->guest_email)) {
             try {
@@ -172,20 +168,28 @@ class OrderController extends Controller
         $phoneMessage = "Pesanan {$order->order_number} sudah dikirim. No Resi: {$order->shipping_tracking_number}."
             . ($order->shipping_tracking_url ? " Lacak: {$order->shipping_tracking_url}" : '');
 
-        $phoneSent = $this->phoneNotificationService->sendTrackingMessage($order, $phoneMessage);
-        $phoneError = $this->phoneNotificationService->getLastError();
-        $phoneTarget = $this->phoneNotificationService->getLastTargetPhone();
+        if (!empty($order->guest_phone)) {
+            try {
+                SendShippingTrackingWhatsapp::dispatch($order, $phoneMessage);
+                $phoneQueued = true;
+            } catch (\Throwable $e) {
+                Log::channel('payment')->error('Failed queueing shipping tracking whatsapp', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
-        if ($emailSent || $phoneSent) {
+        if ($emailSent || $phoneQueued) {
             $order->forceFill(['tracking_notified_at' => now()])->save();
         }
 
         $notice = [];
         $notice[] = 'Resi berhasil disimpan.';
         $notice[] = $emailSent ? 'Notifikasi email masuk antrian kirim.' : 'Notifikasi email belum terkirim.';
-        $notice[] = $phoneSent
-            ? 'Notifikasi WhatsApp terkirim' . ($phoneTarget ? ' ke ' . $phoneTarget : '') . '.'
-            : 'Notifikasi WhatsApp belum terkirim' . ($phoneError ? ': ' . $phoneError : ' (cek webhook).');
+        $notice[] = $phoneQueued
+            ? 'Notifikasi WhatsApp masuk antrian kirim.'
+            : 'Notifikasi WhatsApp belum masuk antrian.';
 
         return back()->with('success', implode(' ', $notice));
     }
