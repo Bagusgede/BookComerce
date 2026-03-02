@@ -105,12 +105,15 @@
                 <!-- Syarat & Ketentuan -->
                 <div class="mb-8 p-4 bg-gray-50 rounded-lg">
                     <label class="flex items-center">
-                        <input type="checkbox" name="agree" required class="w-4 h-4 text-green-600 rounded">
+                        <input type="checkbox" name="agree" value="1" required class="w-4 h-4 text-green-600 rounded">
                         <span class="ml-3 text-sm text-gray-700">
-                            Saya setuju dengan <a href="#" class="text-green-600 hover:underline">Syarat &
-                                Kebijakan</a>
+                            Saya setuju dengan <a href="{{ route('privacy') }}" target="_blank" rel="noopener"
+                                class="text-green-600 hover:underline">Kebijakan Privasi</a>
                         </span>
                     </label>
+                    @error('agree')
+                        <p class="text-red-500 text-sm mt-2">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <!-- Buttons -->

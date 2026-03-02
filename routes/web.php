@@ -16,6 +16,7 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 // PUBLIC PAGES
 Route::view('/tentang-kami', 'public.about')->name('about');
 Route::view('/services', 'public.services')->name('services'); // service Page
+Route::view('/privacy', 'public.privacy')->name('privacy');
 
 // BOOK ROUTES
 Route::prefix('books')->name('books.')->group(function () {

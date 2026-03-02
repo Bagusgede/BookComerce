@@ -90,10 +90,10 @@
                         <div class="flex justify-between">
                             <span class="text-gray-600">Ongkir</span>
                             <span class="font-semibold">
-                                @if ($shipping_cost == 0)
-                                    Gratis
+                                @if (!$has_physical_items)
+                                    Gratis (E-Book)
                                 @else
-                                    Rp {{ number_format($shipping_cost, 0, ',', '.') }}
+                                    Rp {{ number_format($shipping_cost, 0, ',', '.') }} <span class="text-xs text-gray-500">(Estimasi)</span>
                                 @endif
                             </span>
                         </div>
@@ -113,8 +113,27 @@
                         <p class="text-sm text-blue-800">
                             <strong>ℹ️ Informasi:</strong> Anda tidak perlu masuk akun. Silakan lanjutkan ke tahap berikutnya
                             untuk mengisi data diri.
+                            @if ($has_physical_items)
+                                Estimasi ongkir akan dihitung otomatis berdasarkan kota tujuan sebelum pembayaran Midtrans.
+                            @endif
                         </p>
                     </div>
+
+                    @if ($has_physical_items && isset($shipping_validation))
+                        @if (($shipping_validation['mode'] ?? '') === 'live')
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                                <p class="text-sm text-green-800">
+                                    <strong>✓ Ongkir Live Aktif:</strong> Estimasi ongkir menggunakan API kurir secara otomatis.
+                                </p>
+                            </div>
+                        @elseif (!empty($shipping_validation['message']))
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                                <p class="text-sm text-yellow-800">
+                                    <strong>⚠️ Mode Fallback:</strong> {{ $shipping_validation['message'] }}
+                                </p>
+                            </div>
+                        @endif
+                    @endif
 
                     <a href="{{ route('checkout.guest-form') }}"
                         class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg text-center transition">

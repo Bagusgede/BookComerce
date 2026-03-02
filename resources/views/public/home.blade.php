@@ -5,16 +5,16 @@
 @section('content')
 
     {{-- HERO SECTION --}}
-    <section class="hero">
+    <section class="hero home-hero">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-lg-8 mx-auto text-center">
-                    <h1 class="display-4 fw-bold mb-3" style="color: #2C2C2C;">
+                    <h1 class="display-4 fw-bold mb-3">
                         “Buku adalah jendela ilmu. <br>
                         Lewat buku, seseorang bisa melihat dunia.”<br> 
                     </h1>
-                    <h3>Abdul Malik Fadjar  </h3>
-                    <p class="text-muted mb-4">
+                    <h3 class="text-white-50 mb-3">"Abdul Malik Fadjar"</h3>
+                    <p class="mb-4 hero-subtitle">
                         Temukan koleksi buku terbaik untuk menambah wawasan<br>
                         dan menemani aktivitas membaca Anda.
                     </p>
@@ -41,7 +41,7 @@
                         <div class="format-card-modern">
                             {{-- Image --}}
                             <div class="format-img-wrap">
-                                <img src="{{ asset('image/book1.jpg') }}"
+                                <img src="{{ asset('image/book1.png') }}"
                                     onerror="this.src='https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&q=80'"
                                     alt="E-Book Editions" class="format-img">
                                 <div class="format-overlay"></div>
@@ -75,7 +75,7 @@
                         <div class="format-card-modern">
                             {{-- Image --}}
                             <div class="format-img-wrap">
-                                <img src="{{ asset('image/book4.jpg') }}"
+                                <img src="{{ asset('image/book4.png') }}"
                                     onerror="this.src='https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600&q=80'"
                                     alt="Printed Editions" class="format-img">
                                 <div class="format-overlay"></div>
@@ -187,7 +187,7 @@
             <div class="row align-items-center">
                 <div class="col-lg-5 mb-4 mb-lg-0">
                     <div class="text-center">
-                        <img src="{{ asset('image/authors/author-default.jpg') }}"
+                        <img src="{{ asset('image/authors/author.png') }}"
                             onerror="this.src='https://via.placeholder.com/400x400/6B5D52/ffffff?text=Author+Photo'"
                             alt="Mr Alit Asmara" class="img-fluid rounded-4 shadow"
                             style="max-width: 500px; height:400px; width: 100%;">
@@ -235,6 +235,42 @@
 
 @push('styles')
     <style>
+        .home-hero {
+            position: relative;
+            padding: 110px 0;
+            margin-bottom: 60px;
+            background-image: linear-gradient(120deg, rgba(20, 20, 20, 0.72), rgba(20, 20, 20, 0.48)), url("{{ asset('image/Book-cover2.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            overflow: hidden;
+        }
+
+        .home-hero h1 {
+            color: #ffffff;
+            text-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+        }
+
+        .home-hero .hero-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .home-hero .btn-light {
+            background: rgba(255, 255, 255, 0.92);
+            border-color: rgba(255, 255, 255, 0.92);
+        }
+
+        .home-hero .btn-light:hover {
+            background: #ffffff;
+            border-color: #ffffff;
+        }
+
+        @media (max-width: 768px) {
+            .home-hero {
+                padding: 85px 0;
+            }
+        }
+
         /* FORMAT CARD — Minimalis & EleganKonsep: Refined Editorial */
 
         .format-link {
@@ -306,7 +342,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
             transition: background 0.3s ease, color 0.3s ease;
         }
-
+/* asdasdas */
         .format-link:hover .format-badge {
             background: #DC3545;
             color: #ffffff;

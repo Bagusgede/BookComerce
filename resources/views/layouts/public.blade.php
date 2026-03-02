@@ -11,7 +11,7 @@
     {{-- Google Font --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
@@ -28,15 +28,32 @@
             color: #2C2C2C;
         }
 
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Playfair Display', serif;
+        }
+
         /* NAVBAR */
         .navbar {
             background-color: #F5F1E8;
         }
 
         .navbar-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
             font-size: 1.5rem;
             color: #2C2C2C !important;
             letter-spacing: -0.5px;
+        }
+
+        .navbar-logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+            display: block;
         }
 
         .nav-link {
@@ -180,9 +197,20 @@
         }
 
         .footer-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
             font-size: 1.8rem;
             font-weight: 600;
             color: white;
+            text-decoration: none;
+        }
+
+        .footer-logo {
+            width: 38px;
+            height: 38px;
+            object-fit: contain;
+            display: block;
         }
 
         .footer-link {
@@ -257,6 +285,11 @@
             .navbar-brand {
                 font-size: 1.2rem;
             }
+
+            .navbar-logo {
+                width: 30px;
+                height: 30px;
+            }
         }
     </style>
 
@@ -268,7 +301,10 @@
     {{-- NAVBAR PUBLIK --}}
     <nav class="navbar navbar-expand-lg py-3">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="/">BacaYukk.id</a>
+            <a class="navbar-brand fw-bold" href="/">
+                <img src="{{ asset('image/Logo.png') }}" alt="Logo BacaYukk.id" class="navbar-logo">
+                <span>BacaYukk.id</span>
+            </a>
 
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
                 data-bs-target="#navPublic">
@@ -320,36 +356,44 @@
         <div class="container">
             <div class="row">
                 <div class="col-lg-6 mb-4 mb-lg-0">
-                    <h5 class="footer-brand mb-3">BacaYukk.id</h5>
+                    <a href="/" class="footer-brand mb-3">
+                        <img src="{{ asset('image/Logo.png') }}" alt="Logo BacaYukk.id" class="footer-logo">
+                        <span>BacaYukk.id</span>
+                    </a>
                     <p class=" small text-footer" style="max-width: 400px; line-height: 1.8; color:white;">
                         BacaYukk.id adalah platform buku digital dan cetak yang membantu Anda menemukan bacaan
                         berkualitas untuk belajar, bekerja, dan pengembangan diri.
                     </p>
-
-                    {{-- Social Media Icons --}}
-                    <div class="d-flex gap-3 mt-4">
-                        <a href="#" class="social-icon">
-                            <i class="bi bi-instagram"></i>
-                        </a>
-                        <a href="#" class="social-icon">
-                            <i class="bi bi-tiktok"></i>
-                        </a>
-                        <a href="#" class="social-icon">
-                            <i class="bi bi-facebook"></i>
-                        </a>
-                    </div>
                 </div>
 
                 <div class="col-lg-6">
                     <div class="row">
-                        <div class="col-md-12">
+                        <div class="col-md-7">
                             <h6 class="footer-heading">Navigasi</h6>
                             <a href="{{ route('about') }}" class="footer-link">Tentang Kami</a>
                             <a href="/produk" class="footer-link">Produk</a>
                             <a href="{{ route('services') }}" class="footer-link">Layanan</a>
                             <a href="/blog" class="footer-link">Blog</a>
                             <a href="{{ route('services') }}#contact" class="footer-link">Kontak</a>
-                            <a href="/privacy" class="footer-link">Kebijakan Privasi</a>
+                            <a href="{{ route('privacy') }}" class="footer-link">Kebijakan Privasi</a>
+                        </div>
+
+                        <div class="col-md-5 mt-4 mt-md-0 text-md-end">
+                            <h6 class="footer-heading">Ikuti Kami</h6>
+                            <div class="d-flex gap-3 justify-content-md-end">
+                                <a href="#" class="social-icon">
+                                    <i class="bi bi-instagram"></i>
+                                </a>
+                                <a href="#" class="social-icon">
+                                    <i class="bi bi-tiktok"></i>
+                                </a>
+                                <a href="#" class="social-icon">
+                                    <i class="bi bi-facebook"></i>
+                                </a>
+                                <a href="#" class="social-icon" aria-label="Lokasi Maps">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

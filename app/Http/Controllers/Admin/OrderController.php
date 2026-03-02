@@ -159,7 +159,7 @@ class OrderController extends Controller
 
         if (!empty($order->guest_email)) {
             try {
-                Mail::to($order->guest_email)->send(new ShippingTrackingNotification($order));
+                Mail::to($order->guest_email)->queue(new ShippingTrackingNotification($order));
                 $emailSent = true;
             } catch (\Throwable $e) {
                 Log::channel('payment')->error('Failed sending shipping tracking email', [
@@ -173,6 +173,8 @@ class OrderController extends Controller
             . ($order->shipping_tracking_url ? " Lacak: {$order->shipping_tracking_url}" : '');
 
         $phoneSent = $this->phoneNotificationService->sendTrackingMessage($order, $phoneMessage);
+        $phoneError = $this->phoneNotificationService->getLastError();
+        $phoneTarget = $this->phoneNotificationService->getLastTargetPhone();
 
         if ($emailSent || $phoneSent) {
             $order->forceFill(['tracking_notified_at' => now()])->save();
@@ -180,8 +182,10 @@ class OrderController extends Controller
 
         $notice = [];
         $notice[] = 'Resi berhasil disimpan.';
-        $notice[] = $emailSent ? 'Notifikasi email terkirim.' : 'Notifikasi email belum terkirim.';
-        $notice[] = $phoneSent ? 'Notifikasi nomor HP terkirim.' : 'Notifikasi nomor HP belum terkirim (cek webhook).';
+        $notice[] = $emailSent ? 'Notifikasi email masuk antrian kirim.' : 'Notifikasi email belum terkirim.';
+        $notice[] = $phoneSent
+            ? 'Notifikasi WhatsApp terkirim' . ($phoneTarget ? ' ke ' . $phoneTarget : '') . '.'
+            : 'Notifikasi WhatsApp belum terkirim' . ($phoneError ? ': ' . $phoneError : ' (cek webhook).');
 
         return back()->with('success', implode(' ', $notice));
     }
@@ -215,8 +219,8 @@ class OrderController extends Controller
             ]);
         }
 
-        // Send email
-        \Illuminate\Support\Facades\Mail::send(new \App\Mail\EbookDownloadLink(
+        // Queue email
+        \Illuminate\Support\Facades\Mail::to($order->guest_email)->queue(new \App\Mail\EbookDownloadLink(
             $order,
             $orderItem->book,
             route('ebook.download', [
@@ -226,7 +230,7 @@ class OrderController extends Controller
             $delivery
         ));
 
-        return back()->with('success', 'Link ebook berhasil dikirim ulang ke ' . $order->guest_email);
+        return back()->with('success', 'Link ebook berhasil dimasukkan ke antrian kirim ke ' . $order->guest_email);
     }
 
     /**

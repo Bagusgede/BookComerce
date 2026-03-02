@@ -8,7 +8,9 @@ use App\Models\OrderItem;
 use App\Models\Cart;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -31,6 +33,7 @@ class CheckoutController extends Controller
         // Map cart items with book data
         $items = [];
         $subtotal = 0;
+        $physicalQuantity = 0;
 
         foreach ($cartItems as $bookId => $cartItem) {
             $book = Book::find($bookId);
@@ -54,17 +57,30 @@ class CheckoutController extends Controller
             ];
 
             $subtotal += $item_total;
+
+            if (in_array($book->format, ['physical', 'both'], true)) {
+                $physicalQuantity += (int) $cartItem['quantity'];
+            }
         }
 
-        // Calculate shipping (optional - bisa disesuaikan)
-        $shipping_cost = 0; // Bisa ditambahkan logic shipping calculation
+        $shipping_cost = $this->calculateShippingCost($physicalQuantity);
         $total = $subtotal + $shipping_cost;
+
+        $shippingValidation = $this->validateShippingConfiguration($physicalQuantity > 0);
+
+        if (!$shippingValidation['is_valid'] && $shippingValidation['message']) {
+            Log::warning('Shipping configuration incomplete, using fallback shipping', [
+                'message' => $shippingValidation['message'],
+            ]);
+        }
 
         return view('checkout.index', [
             'items' => $items,
             'subtotal' => $subtotal,
             'shipping_cost' => $shipping_cost,
             'total' => $total,
+            'has_physical_items' => $physicalQuantity > 0,
+            'shipping_validation' => $shippingValidation,
         ]);
     }
 
@@ -94,6 +110,9 @@ class CheckoutController extends Controller
             'address' => 'required|string',
             'city' => 'required|string',
             'postal_code' => 'required|string|max:10',
+            'agree' => 'accepted',
+        ], [
+            'agree.accepted' => 'Anda harus menyetujui Kebijakan Privasi untuk melanjutkan checkout.',
         ]);
 
         $cartItems = session()->get('cart', []);
@@ -107,15 +126,21 @@ class CheckoutController extends Controller
 
             // Calculate order totals
             $subtotal = 0;
+            $physicalQuantity = 0;
             foreach ($cartItems as $bookId => $cartItem) {
                 $book = Book::find($bookId);
                 if ($book) {
                     $final_price = $book->discount_price ?? $book->price;
                     $subtotal += $final_price * $cartItem['quantity'];
+
+                    if (in_array($book->format, ['physical', 'both'], true)) {
+                        $physicalQuantity += (int) $cartItem['quantity'];
+                    }
                 }
             }
 
-            $shipping_cost = 0;
+            $shippingData = $this->calculateShippingData($physicalQuantity, $validated['city']);
+            $shipping_cost = $shippingData['cost'];
             $total = $subtotal + $shipping_cost;
 
             $orderData = [
@@ -154,7 +179,7 @@ class CheckoutController extends Controller
             }
 
             if (Schema::hasColumn('orders', 'total_amount')) {
-                $orderData['total_amount'] = $subtotal;
+                $orderData['total_amount'] = $total;
             }
 
             if (Schema::hasColumn('orders', 'shipping_name')) {
@@ -179,6 +204,10 @@ class CheckoutController extends Controller
 
             if (Schema::hasColumn('orders', 'shipping_postal_code')) {
                 $orderData['shipping_postal_code'] = $validated['postal_code'];
+            }
+
+            if (Schema::hasColumn('orders', 'shipping_method')) {
+                $orderData['shipping_method'] = $shippingData['method'];
             }
 
             if (Schema::hasColumn('orders', 'user_id')) {
@@ -299,6 +328,15 @@ class CheckoutController extends Controller
                 ];
             })->values()->all();
 
+            if ((int) round($order->shipping_cost) > 0) {
+                $itemDetails[] = [
+                    'id' => 'shipping',
+                    'price' => (int) round($order->shipping_cost),
+                    'quantity' => 1,
+                    'name' => 'Ongkos Kirim',
+                ];
+            }
+
             $payload = [
                 'transaction_details' => [
                     'order_id' => $transactionId,
@@ -376,5 +414,258 @@ class CheckoutController extends Controller
             DB::rollBack();
             return redirect()->back()->withErrors(['error' => 'Gagal membatalkan order']);
         }
+    }
+
+    private function calculateShippingCost(int $physicalQuantity, ?string $city = null): int
+    {
+        return $this->calculateShippingData($physicalQuantity, $city)['cost'];
+    }
+
+    private function calculateShippingData(int $physicalQuantity, ?string $city = null): array
+    {
+        if ($physicalQuantity <= 0) {
+            return [
+                'cost' => 0,
+                'method' => null,
+                'source' => 'none',
+            ];
+        }
+
+        $defaultBaseCost = (int) config('shipping.default_base_cost', 18000);
+        $additionalPerItem = (int) config('shipping.additional_per_item', 5000);
+        $cityOverrides = (array) config('shipping.city_overrides', []);
+
+        $normalizedCity = strtolower(trim((string) $city));
+        $baseCost = $defaultBaseCost;
+
+        if ($normalizedCity !== '' && array_key_exists($normalizedCity, $cityOverrides)) {
+            $baseCost = (int) $cityOverrides[$normalizedCity];
+        }
+
+        $extraItems = max(0, $physicalQuantity - 1);
+        $fallbackCost = $baseCost + ($extraItems * $additionalPerItem);
+
+        $liveRate = $this->getLiveShippingRate($physicalQuantity, $city);
+        if ($liveRate !== null) {
+            return $liveRate;
+        }
+
+        return [
+            'cost' => $fallbackCost,
+            'method' => 'AUTO_FLAT_RATE',
+            'source' => 'fallback',
+        ];
+    }
+
+    private function getLiveShippingRate(int $physicalQuantity, ?string $destinationCity): ?array
+    {
+        $provider = (string) config('shipping.provider', 'flat');
+        if ($provider !== 'rajaongkir') {
+            return null;
+        }
+
+        $apiKey = (string) config('shipping.rajaongkir.api_key');
+        $originCityId = (string) config('shipping.rajaongkir.origin_city_id');
+        $originCityName = (string) config('shipping.rajaongkir.origin_city_name', '');
+        $courier = strtolower((string) config('shipping.rajaongkir.courier', 'jne'));
+        $preferredService = strtoupper((string) config('shipping.rajaongkir.preferred_service', 'REG'));
+        $timeoutSeconds = (int) config('shipping.rajaongkir.timeout_seconds', 8);
+        $cacheMinutes = (int) config('shipping.rajaongkir.cache_minutes', 60);
+
+        if ($apiKey === '' || !$destinationCity) {
+            return null;
+        }
+
+        if ($originCityId === '' && $originCityName !== '') {
+            $originCityId = $this->resolveRajaOngkirCityId($originCityName, $apiKey, $timeoutSeconds, $cacheMinutes);
+        }
+
+        if ($originCityId === '') {
+            return null;
+        }
+
+        $destinationCityId = $this->resolveRajaOngkirCityId($destinationCity, $apiKey, $timeoutSeconds, $cacheMinutes);
+        if (!$destinationCityId) {
+            return null;
+        }
+
+        $weightPerItem = (int) config('shipping.default_weight_per_item_gram', 500);
+        $minimumWeight = (int) config('shipping.minimum_weight_gram', 500);
+        $totalWeight = max($minimumWeight, $physicalQuantity * max(1, $weightPerItem));
+
+        $cacheKey = 'shipping:rajaongkir:cost:' . md5($originCityId . '|' . $destinationCityId . '|' . $courier . '|' . $totalWeight . '|' . $preferredService);
+
+        return Cache::remember($cacheKey, now()->addMinutes($cacheMinutes), function () use (
+            $apiKey,
+            $originCityId,
+            $destinationCityId,
+            $courier,
+            $preferredService,
+            $totalWeight,
+            $timeoutSeconds
+        ) {
+            /** @var \Illuminate\Http\Client\Response $response */
+            $response = Http::timeout($timeoutSeconds)
+                ->retry(1, 200)
+                ->withHeaders(['key' => $apiKey])
+                ->asForm()
+                ->post('https://api.rajaongkir.com/starter/cost', [
+                    'origin' => $originCityId,
+                    'destination' => $destinationCityId,
+                    'weight' => $totalWeight,
+                    'courier' => $courier,
+                ]);
+
+            if (!$response->ok()) {
+                Log::warning('RajaOngkir cost API failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return null;
+            }
+
+            $results = data_get($response->json(), 'rajaongkir.results.0.costs', []);
+            if (!is_array($results) || empty($results)) {
+                return null;
+            }
+
+            $selected = null;
+
+            foreach ($results as $service) {
+                $serviceCode = strtoupper((string) data_get($service, 'service', ''));
+                $costValue = (int) data_get($service, 'cost.0.value', 0);
+
+                if ($costValue <= 0) {
+                    continue;
+                }
+
+                if ($serviceCode === $preferredService) {
+                    $selected = [
+                        'cost' => $costValue,
+                        'method' => strtoupper($courier) . '-' . $serviceCode,
+                        'source' => 'rajaongkir',
+                    ];
+                    break;
+                }
+
+                if ($selected === null || $costValue < $selected['cost']) {
+                    $selected = [
+                        'cost' => $costValue,
+                        'method' => strtoupper($courier) . '-' . $serviceCode,
+                        'source' => 'rajaongkir',
+                    ];
+                }
+            }
+
+            return $selected;
+        });
+    }
+
+    private function resolveRajaOngkirCityId(string $cityInput, string $apiKey, int $timeoutSeconds, int $cacheMinutes): ?string
+    {
+        $normalizedInput = $this->normalizeCityName($cityInput);
+        if ($normalizedInput === '') {
+            return null;
+        }
+
+        $cities = Cache::remember('shipping:rajaongkir:cities', now()->addMinutes(max(60, $cacheMinutes)), function () use ($apiKey, $timeoutSeconds) {
+            /** @var \Illuminate\Http\Client\Response $response */
+            $response = Http::timeout($timeoutSeconds)
+                ->retry(1, 200)
+                ->withHeaders(['key' => $apiKey])
+                ->get('https://api.rajaongkir.com/starter/city');
+
+            if (!$response->ok()) {
+                Log::warning('RajaOngkir city API failed', [
+                    'status' => $response->status(),
+                ]);
+
+                return [];
+            }
+
+            return (array) data_get($response->json(), 'rajaongkir.results', []);
+        });
+
+        if (empty($cities)) {
+            return null;
+        }
+
+        foreach ($cities as $city) {
+            $cityName = $this->normalizeCityName((string) data_get($city, 'city_name', ''));
+            if ($cityName === $normalizedInput) {
+                return (string) data_get($city, 'city_id');
+            }
+        }
+
+        foreach ($cities as $city) {
+            $cityName = $this->normalizeCityName((string) data_get($city, 'city_name', ''));
+            if ($cityName !== '' && (str_contains($cityName, $normalizedInput) || str_contains($normalizedInput, $cityName))) {
+                return (string) data_get($city, 'city_id');
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeCityName(string $name): string
+    {
+        $normalized = Str::lower(trim($name));
+        $normalized = str_replace(['kabupaten', 'kab.', 'kota', '.', ','], ' ', $normalized);
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?: '';
+
+        return trim($normalized);
+    }
+
+    private function validateShippingConfiguration(bool $requiresPhysicalShipping): array
+    {
+        if (!$requiresPhysicalShipping) {
+            return [
+                'is_valid' => true,
+                'message' => null,
+                'provider' => (string) config('shipping.provider', 'flat'),
+                'mode' => 'digital-only',
+            ];
+        }
+
+        $provider = (string) config('shipping.provider', 'flat');
+
+        if ($provider !== 'rajaongkir') {
+            return [
+                'is_valid' => true,
+                'message' => 'Ongkir live API tidak aktif. Sistem menggunakan ongkir fallback.',
+                'provider' => $provider,
+                'mode' => 'fallback',
+            ];
+        }
+
+        $apiKey = (string) config('shipping.rajaongkir.api_key', '');
+        $originCityId = (string) config('shipping.rajaongkir.origin_city_id', '');
+        $originCityName = (string) config('shipping.rajaongkir.origin_city_name', '');
+
+        if ($apiKey === '') {
+            return [
+                'is_valid' => false,
+                'message' => 'RAJAONGKIR_API_KEY belum diisi. Ongkir akan memakai fallback.',
+                'provider' => $provider,
+                'mode' => 'fallback',
+            ];
+        }
+
+        if ($originCityId === '' && $originCityName === '') {
+            return [
+                'is_valid' => false,
+                'message' => 'Origin RajaOngkir belum diset (RAJAONGKIR_ORIGIN_CITY_ID atau RAJAONGKIR_ORIGIN_CITY_NAME). Ongkir akan memakai fallback.',
+                'provider' => $provider,
+                'mode' => 'fallback',
+            ];
+        }
+
+        return [
+            'is_valid' => true,
+            'message' => null,
+            'provider' => $provider,
+            'mode' => 'live',
+        ];
     }
 }

@@ -38,6 +38,9 @@ return [
     'phone_notification' => [
         'webhook_url' => env('PHONE_NOTIFICATION_WEBHOOK_URL'),
         'token' => env('PHONE_NOTIFICATION_TOKEN'),
+        'timeout_seconds' => env('PHONE_NOTIFICATION_TIMEOUT_SECONDS', 15),
+        'retry_count' => env('PHONE_NOTIFICATION_RETRY_COUNT', 1),
+        'force_to' => env('PHONE_NOTIFICATION_FORCE_TO'),
     ],
 
 ];

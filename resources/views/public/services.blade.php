@@ -362,7 +362,7 @@
                     </p>
                     <div class="contact-info mb-3">
                         <i class="bi bi-envelope-fill me-2"></i>
-                        <span>services@bacayukk.id</span>
+                        <span>alit20147@gmail.com</span>
                     </div>
                     <div class="contact-info mb-3">
                         <i class="bi bi-whatsapp me-2"></i>
